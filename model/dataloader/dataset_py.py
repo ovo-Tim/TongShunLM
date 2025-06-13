@@ -18,7 +18,7 @@ def is_chinese(char):
 
 _end_chars = {'。', '！', '？', '!', '?'}
 
-class TextFilesDataset(IterableDataset):
+class TongShunDataset(IterableDataset):
     def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3):
         '''
         negative_sample_rate: 负样本采样率，但由于每个字符会生成三条数据，所以实际负样本采样率为 negative_sample_rate/3
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     with open("./model/dict.txt", "r") as f:
         voca = f.read().splitlines()
     # data = TextFilesDataset([Path("test_data.txt")], voca)
-    data = TextFilesDataset([Path("/tmp/chinese_output.txt")], voca)
+    data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca)
     t = iter(data)
     n = 1500
 
