@@ -4,7 +4,7 @@
 测试:
 数据集大小: 1.1G
 字典大小: 34M
-平均耗时(ms): 0.002
+平均每个数据耗时(ms): 0.01 (Tokenized)
 峰值内存使用: 387.61 MB
 '''
 from torch.utils.data import IterableDataset, DataLoader
@@ -19,7 +19,7 @@ def is_chinese(char):
 _end_chars = {'。', '！', '？', '!', '?'}
 
 class TongShunDataset(IterableDataset):
-    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3):
+    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a):
         '''
         negative_sample_rate: 负样本采样率，但由于每个字符会生成三条数据，所以实际负样本采样率为 negative_sample_rate/3
         voca: 输入法可用词库
@@ -28,6 +28,7 @@ class TongShunDataset(IterableDataset):
         self.chinese_only = chinese_only
         self.negative_sample_rate = negative_sample_rate
         self.voca = voca
+        self.tokenizer = tokenizer
 
         # Build trie tree
         self.voca_tree = Trie([i[::-1] for i in voca])
@@ -37,19 +38,25 @@ class TongShunDataset(IterableDataset):
         if not (self.chinese_only and not is_chinese(char)):
             for i in self.get_y(context):
                 l = len(i)
+
+                # Tokenize
+                _context = self.tokenizer(context)
+                _sentence = self.tokenizer(sentence)
+                _i = self.tokenizer(i)
+
                 # Full context
-                yield (context[:-l], i), 1
+                yield (_context[:-l], _i), 1
                 # Random context
                 if (len(context) - l) > 15:
-                    yield (context[random.randint(0, len(context) - l - 12):-l], i), 1
+                    yield (_context[random.randint(0, len(context) - l - 12):-l], _i), 1
                 # Full sentence(even if sentence is empty)
                 if sentence != context:
-                    yield (sentence[:-l], i), 1
+                    yield (_sentence[:-l], _i), 1
 
             # Random negative sample
-            _contexts = [context, sentence]
+            _contexts = [_context, _sentence]
             for _ in repeat(None, self.negative_sample_rate):
-                yield (random.choice(_contexts), random.choice(self.voca)), 0
+                yield (random.choice(_contexts), self.tokenizer(random.choice(self.voca))), 0
 
     def get_y(self, string):
         y = self.voca_tree.prefixes(string[::-1])
@@ -81,6 +88,14 @@ class TongShunDataset(IterableDataset):
 
 # Test
 if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    # 获取项目根目录
+    project_root = Path(__file__).parent.parent
+    sys.path.append(str(project_root))
+
+    from tokenizer.tokrnizer import Tokenizer
     import tracemalloc
     import timeit
     tracemalloc.start()
@@ -88,7 +103,8 @@ if __name__ == "__main__":
     with open("./model/dict.txt", "r") as f:
         voca = f.read().splitlines()
     # data = TextFilesDataset([Path("test_data.txt")], voca)
-    data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca)
+    tokenizer = Tokenizer("./model/tokenizer/tokenizer.json")
+    data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca, tokenizer=tokenizer.encode)
     t = iter(data)
     n = 1500
 
