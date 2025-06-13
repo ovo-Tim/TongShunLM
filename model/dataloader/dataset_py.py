@@ -18,6 +18,24 @@ def is_chinese(char):
 
 _end_chars = {'。', '！', '？', '!', '?'}
 
+class RandomQueue:
+    def __init__(self):
+        self._data = []
+
+    def add(self, item):
+        """Add an item to the queue."""
+        self._data.append(item)
+
+    def pop(self):
+        """Remove and return a random item from the queue. O(1) time complexity."""
+        i = random.randint(0, len(self._data) - 1)
+        # Swap with the last item
+        self._data[i], self._data[-1] = self._data[-1], self._data[i]
+        return self._data.pop()  # Pop the last item
+
+    def __len__(self):
+        return len(self._data)
+
 class TongShunDataset(IterableDataset):
     def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a):
         '''
@@ -32,6 +50,12 @@ class TongShunDataset(IterableDataset):
 
         # Build trie tree
         self.voca_tree = Trie([i[::-1] for i in voca])
+
+        self.random_queue = RandomQueue()
+
+        self._generator = self.generator()
+        for _ in repeat(None, 10):
+            self.random_queue.add(next(self._generator))
 
     def data_generator(self, char, context, sentence):
         sentence += char
@@ -68,9 +92,9 @@ class TongShunDataset(IterableDataset):
         return y
 
     def __iter__(self):
-        return self._generator()
+        return self.shuffled()
 
-    def _generator(self):
+    def generator(self):
         for file_path in self.file_paths:
             with open(file_path, 'r', encoding='utf-8') as file:
                 context = ""
@@ -85,6 +109,11 @@ class TongShunDataset(IterableDataset):
                         sentence = ""
                         continue
                     yield from self.data_generator(char, context, sentence)
+
+    def shuffled(self):
+        for i in self._generator:
+            self.random_queue.add(i)
+            yield self.random_queue.pop()
 
 # Test
 if __name__ == "__main__":
@@ -102,9 +131,9 @@ if __name__ == "__main__":
 
     with open("./model/dict.txt", "r") as f:
         voca = f.read().splitlines()
-    # data = TextFilesDataset([Path("test_data.txt")], voca)
     tokenizer = Tokenizer("./model/tokenizer/tokenizer.json")
-    data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca, tokenizer=tokenizer.encode)
+    data = TongShunDataset([Path("test_data.txt")], voca, tokenizer=tokenizer.encode)
+    # data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca, tokenizer=tokenizer.encode)
     t = iter(data)
     n = 1500
 

@@ -59,7 +59,7 @@ class TongShunDataModule(L.LightningDataModule):
             self.val_dataset = TongShunDataset(self.val_datas, self.voca, self.conf.chinese_only, self.conf.negative_sample_rate)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.conf.batch_size, shuffle=True)
+        return DataLoader(self.train_dataset, batch_size=self.conf.batch_size, pin_memory=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.conf.batch_size, shuffle=False)
+        return DataLoader(self.val_dataset, batch_size=self.conf.batch_size)
