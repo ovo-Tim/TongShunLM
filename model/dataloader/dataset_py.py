@@ -1,17 +1,16 @@
 '''
-纯 python 实现，但是速度较慢且不支持多进程(IterableDataset)
+纯 python 实现，不支持多进程(IterableDataset)，但看起来性能够用了
 返回性状: ((上下文， 输入), 标签(0/1))
 测试:
-数据集大小: 1.3G
+数据集大小: 1.1G
 字典大小: 34M
-平均耗时(ms): 0.053
+平均耗时(ms): 0.002
 峰值内存使用: 387.61 MB
 '''
 from torch.utils.data import IterableDataset, DataLoader
 import random
 from pathlib import Path
 from marisa_trie import Trie
-import gc
 from itertools import repeat
 
 def is_chinese(char):
