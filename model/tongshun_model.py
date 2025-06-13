@@ -4,7 +4,7 @@
 ########################################################################################################
 
 import torch
-from model.configs.test1_20M import args
+from configs.test1_20M import args
 import torch.nn as nn
 from torch.nn import functional as F
 torch.backends.cudnn.benchmark = True
@@ -212,22 +212,25 @@ class tongshun(nn.Module):
         self.args = args
 
         self.rwkv = RWKV(args)
-        self.ln = nn.LayerNorm(args.n_embd*2)
-        self.inp = nn.Linear(args.n_embd*2, args.final_ffn, bias=False)
-        self.hid = nn.Linear(args.final_ffn, args.final_ffn, bias=False)
-        self.hid2 = nn.Linear(args.final_ffn, args.final_ffn, bias=False)
-        self.out = nn.Linear(args.final_ffn, 1, bias=False)
+        self.ffn = nn.Sequential(
+            nn.LayerNorm(args.n_embd*2),
+            nn.Linear(args.n_embd * 2, args.final_ffn),
+            nn.SiLU(),
+            nn.Linear(args.final_ffn, args.final_ffn),
+            nn.SiLU(),
+            nn.Linear(args.final_ffn, args.final_ffn),
+            nn.SiLU(),
+            nn.Linear(args.final_ffn, 1)
+        )
+
 
     def forward(self, x1, x2):
         x1 = self.rwkv(x1)[:, -1, :]
         x2 = self.rwkv(x2)[:, -1, :]
         # Shape: (batch_size, 2*args.n_embd)
         x = torch.cat([x1, x2], dim=1)
-        x = self.ln(x)
-        x = F.silu(self.inp(x))
-        x = F.silu(self.hid(x))
-        x = F.silu(self.hid2(x))
-        x = self.out(x)
+        x = self.ffn(x)
+        x = x.squeeze(-1)
         return x
 
 if __name__ == '__main__':

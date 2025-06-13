@@ -3,7 +3,7 @@ from .template import config
 n_embd = 512
 
 args = config(
-    n_layer=5,
+    n_layer=3,
     n_embd=n_embd,
     D_DECAY_LORA=64,
     D_AAA_LORA=64,
@@ -12,5 +12,5 @@ args = config(
     vocab_size=4000,
     head_size=64,
     dim_ffn=n_embd * 2,
-    final_ffn=n_embd * 3,
+    final_ffn=n_embd * 4,
 )
