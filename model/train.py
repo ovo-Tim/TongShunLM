@@ -50,6 +50,6 @@ if __name__ == "__main__":
 
     model = TongShun(lr=1e-5, model_args=model_args)
     trainer = L.Trainer(accelerator="gpu")
-    # tuner = Tuner(trainer)
-    # tuner.lr_find(model)
+    tuner = Tuner(trainer)
+    tuner.lr_find(model, datamodule=data_module)
     trainer.fit(model, datamodule=data_module)
