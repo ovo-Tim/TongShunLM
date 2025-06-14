@@ -4,7 +4,6 @@
 ########################################################################################################
 
 import torch
-from configs.test1_20M import args
 import torch.nn as nn
 from torch.nn import functional as F
 torch.backends.cudnn.benchmark = True
@@ -18,12 +17,14 @@ torch._C._jit_set_autocast_mode(False)
 This will load RWKV-7 "Goose" x070 and inference in GPT-mode (slower than RNN-mode for autoregressive generation)
 '''
 
-# DTYPE = torch.bfloat16
-DTYPE = torch.half # better
+DTYPE = torch.bfloat16
+# DTYPE = torch.half # better
 
 MyModule = torch.jit.ScriptModule
 MyFunction = torch.jit.script_method
 MyStatic = torch.jit.script
+# MyModule = nn.Module
+# MyFunction = lambda fn: fn
 
 ########################################################################################################
 # RWKV TimeMix
@@ -42,38 +43,38 @@ class RWKV_Tmix_x070(MyModule):
         N = args.head_size
         C = args.n_embd
 
-        self.x_r = nn.Parameter(torch.empty(1,1,C))
-        self.x_w = nn.Parameter(torch.empty(1,1,C))
-        self.x_k = nn.Parameter(torch.empty(1,1,C))
-        self.x_v = nn.Parameter(torch.empty(1,1,C))
-        self.x_a = nn.Parameter(torch.empty(1,1,C))
-        self.x_g = nn.Parameter(torch.empty(1,1,C))
+        self.x_r = nn.Parameter(torch.rand(1,1,C))
+        self.x_w = nn.Parameter(torch.rand(1,1,C))
+        self.x_k = nn.Parameter(torch.rand(1,1,C))
+        self.x_v = nn.Parameter(torch.rand(1,1,C))
+        self.x_a = nn.Parameter(torch.rand(1,1,C))
+        self.x_g = nn.Parameter(torch.rand(1,1,C))
 
-        self.w0 = nn.Parameter(torch.empty(1,1,C))
-        self.w1 = nn.Parameter(torch.empty(C, args.D_DECAY_LORA))
-        self.w2 = nn.Parameter(torch.empty(args.D_DECAY_LORA, C))
+        self.w0 = nn.Parameter(torch.rand(1,1,C))
+        self.w1 = nn.Parameter(torch.rand(C, args.D_DECAY_LORA))
+        self.w2 = nn.Parameter(torch.rand(args.D_DECAY_LORA, C))
 
-        self.a0 = nn.Parameter(torch.empty(1,1,C))
-        self.a1 = nn.Parameter(torch.empty(C, args.D_AAA_LORA))
-        self.a2 = nn.Parameter(torch.empty(args.D_AAA_LORA, C))
+        self.a0 = nn.Parameter(torch.rand(1,1,C))
+        self.a1 = nn.Parameter(torch.rand(C, args.D_AAA_LORA))
+        self.a2 = nn.Parameter(torch.rand(args.D_AAA_LORA, C))
 
-        self.v0 = nn.Parameter(torch.empty(1,1,C))
-        self.v1 = nn.Parameter(torch.empty(C, args.D_MV_LORA))
-        self.v2 = nn.Parameter(torch.empty(args.D_MV_LORA, C))
+        self.v0 = nn.Parameter(torch.rand(1,1,C))
+        self.v1 = nn.Parameter(torch.rand(C, args.D_MV_LORA))
+        self.v2 = nn.Parameter(torch.rand(args.D_MV_LORA, C))
 
-        self.g1 = nn.Parameter(torch.empty(C, args.D_GATE_LORA))
-        self.g2 = nn.Parameter(torch.empty(args.D_GATE_LORA, C))
+        self.g1 = nn.Parameter(torch.rand(C, args.D_GATE_LORA))
+        self.g2 = nn.Parameter(torch.rand(args.D_GATE_LORA, C))
 
-        self.k_k = nn.Parameter(torch.empty(1,1,C))
-        self.k_a = nn.Parameter(torch.empty(1,1,C))
-        self.r_k = nn.Parameter(torch.empty(H,N))
+        self.k_k = nn.Parameter(torch.rand(1,1,C))
+        self.k_a = nn.Parameter(torch.rand(1,1,C))
+        self.r_k = nn.Parameter(torch.rand(H,N))
 
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
         self.receptance = nn.Linear(C, C, bias=False)
         self.key = nn.Linear(C, C, bias=False)
         self.value = nn.Linear(C, C, bias=False)
         self.output = nn.Linear(C, C, bias=False)
-        self.ln_x = nn.GroupNorm(H, C, eps=64e-5) # !!! notice eps value !!!
+        self.ln_x = nn.GroupNorm(H, C, eps=64e-5, dtype=self.DTYPE) # !!! notice eps value !!!
 
     @MyFunction
     def forward(self, x, v_first):
@@ -103,7 +104,9 @@ class RWKV_Tmix_x070(MyModule):
         kk = F.normalize(kk.view(B,T,H,-1), dim=-1, p=2.0).view(B,T,C)
         k = k * (1 + (a-1) * self.k_a)
 
+        # print(f"Input: min={x.min()}, max={x.max()}, mean={x.mean()}")
         x = self.RWKV7_OP(r, w, k, v, -kk, kk*a)
+        # print(f"Input: min={x.min()}, max={x.max()}, mean={x.mean()}")
         x = self.ln_x(x.view(B * T, C)).view(B, T, C)
 
         x = x + ((r.view(B,T,H,-1)*k.view(B,T,H,-1)*self.r_k).sum(dim=-1, keepdim=True) * v.view(B,T,H,-1)).view(B,T,C)
@@ -147,7 +150,7 @@ class RWKV_CMix_x070(MyModule):
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
         with torch.no_grad():
-            self.x_k = nn.Parameter(torch.empty(1, 1, args.n_embd))
+            self.x_k = nn.Parameter(torch.rand(1, 1, args.n_embd))
 
         self.key = nn.Linear(args.n_embd, args.dim_ffn, bias=False)
         self.value = nn.Linear(args.dim_ffn, args.n_embd, bias=False)
@@ -190,17 +193,17 @@ class Block(MyModule):
         return x, v_first
 
 class RWKV(nn.Module):
-    def __init__(self, args):
+    def __init__(self, model_args):
         super().__init__()
-        self.emb = nn.Embedding(args.vocab_size, args.n_embd)
+        self.emb = nn.Embedding(model_args.vocab_size, model_args.n_embd)
 
-        self.blocks = nn.ModuleList([Block(args, i) for i in range(args.n_layer)])
+        self.blocks = nn.ModuleList([Block(model_args, i) for i in range(model_args.n_layer)])
 
     def forward(self, idx):
 
         x = self.emb(idx)
 
-        v_first = torch.empty_like(x)
+        v_first = torch.rand_like(x)
         for block in self.blocks:
             x, v_first = block(x, v_first)
 
@@ -223,7 +226,6 @@ class tongshun(nn.Module):
             nn.Linear(args.final_ffn, 1)
         )
 
-
     def forward(self, x1, x2):
         x1 = self.rwkv(x1)[:, -1, :]
         x2 = self.rwkv(x2)[:, -1, :]
@@ -234,5 +236,11 @@ class tongshun(nn.Module):
         return x
 
 if __name__ == '__main__':
+    from configs.test1_20M import args
     model = tongshun(args)
+
     print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1e6}M")
+
+    print(model(torch.tensor([[   1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
+           1,    1,    1, 1261, 2427, 3445, 2815, 2368, 1451, 1010, 3017, 2368,
+         883, 2088, 2115,   35, 2858,  424]], dtype=torch.int32), torch.tensor([[   1,    1,    1,    1,    1,    0,    0,  441, 3322, 2885]],dtype=torch.int32)))

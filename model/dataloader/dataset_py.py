@@ -7,11 +7,17 @@
 平均每个数据耗时(ms): 0.01 (Tokenized)
 峰值内存使用: 387.61 MB
 '''
-from torch.utils.data import IterableDataset, DataLoader
+from torch.utils.data import IterableDataset
+from torch import tensor
 import random
 from pathlib import Path
 from marisa_trie import Trie
 from itertools import repeat
+import torch
+
+def pad_list(input_list, pad_len, pad_value):
+    padding_size = max(0, pad_len - len(input_list))
+    return [pad_value] * padding_size + input_list[-pad_len:]
 
 def is_chinese(char):
     return '\u4e00' <= char <= '\u9fff'
@@ -37,7 +43,7 @@ class RandomQueue:
         return len(self._data)
 
 class TongShunDataset(IterableDataset):
-    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a):
+    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a, pad_len:tuple[int, int]=(30, 10)):
         '''
         negative_sample_rate: 负样本采样率，但由于每个字符会生成三条数据，所以实际负样本采样率为 negative_sample_rate/3
         voca: 输入法可用词库
@@ -45,8 +51,10 @@ class TongShunDataset(IterableDataset):
         self.file_paths = file_paths
         self.chinese_only = chinese_only
         self.negative_sample_rate = negative_sample_rate
-        self.voca = voca
         self.tokenizer = tokenizer
+        self.voca = [self.tokenizer(i) for i in voca]
+
+        self.pad_context_len, self.pad_y_len = pad_len
 
         # Build trie tree
         self.voca_tree = Trie([i[::-1] for i in voca])
@@ -60,7 +68,7 @@ class TongShunDataset(IterableDataset):
     def data_generator(self, char, context, sentence):
         sentence += char
         if not (self.chinese_only and not is_chinese(char)):
-            for i in self.get_y(context):
+            for i in self.get_x(context):
                 l = len(i)
 
                 # Tokenize
@@ -80,9 +88,15 @@ class TongShunDataset(IterableDataset):
             # Random negative sample
             _contexts = [_context, _sentence]
             for _ in repeat(None, self.negative_sample_rate):
-                yield (random.choice(_contexts), self.tokenizer(random.choice(self.voca))), 0
+                yield (random.choice(_contexts), random.choice(self.voca)), 0
 
-    def get_y(self, string):
+    def pad_context(self, string):
+        return pad_list(string, self.pad_context_len, 1)
+
+    def pad_x(self, string):
+        return pad_list(string, self.pad_y_len, 1)
+
+    def get_x(self, string):
         y = self.voca_tree.prefixes(string[::-1])
         y = [i[::-1] for i in y]
         y.append(string[-1])
@@ -108,7 +122,10 @@ class TongShunDataset(IterableDataset):
                     if char in _end_chars:
                         sentence = ""
                         continue
-                    yield from self.data_generator(char, context, sentence)
+                    # yield from self.data_generator(char, context, sentence)
+                    for i in self.data_generator(char, context, sentence):
+                        (con, x), y = i
+                        yield (tensor(self.pad_context(con), dtype=torch.int32), tensor(self.pad_x(x), dtype=torch.int32)), tensor(y, dtype=torch.half)
 
     def shuffled(self):
         for i in self._generator:
@@ -132,13 +149,14 @@ if __name__ == "__main__":
     with open("./model/dict.txt", "r") as f:
         voca = f.read().splitlines()
     tokenizer = Tokenizer("./model/tokenizer/tokenizer.json")
-    data = TongShunDataset([Path("test_data.txt")], voca, tokenizer=tokenizer.encode)
+    data = TongShunDataset([Path("./train_datas/test_data.txt")], voca, tokenizer=tokenizer.encode)
     # data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca, tokenizer=tokenizer.encode)
     t = iter(data)
     n = 1500
 
-    # for _ in repeat(None, 100):
-    #     print(next(t))
+    for _ in repeat(None, 100):
+        a = next(t)
+        print(a[0][0], a[0][1])
 
     print("平均耗时(ms):", timeit.timeit(lambda: next(t), number=n)*1000/n)
 

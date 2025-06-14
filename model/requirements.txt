@@ -1,4 +1,4 @@
 # Please install pytorch yourself: https://pytorch.org/get-started/locally/
 #  torch
-linghtning
+lightning
 marisa-trie

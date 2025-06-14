@@ -194,3 +194,8 @@ cython_debug/
 .cursorindexingignore
 
 test_data.txt
+
+val_datas
+train_datas
+lightning_logs
+.lr_find*
