@@ -58,7 +58,9 @@ class TongShunDataModule(L.LightningDataModule):
     def setup(self, stage: str) -> None:
         if stage == "fit":
             self.train_dataset = TongShunDataset(self.train_datas, self.voca, self.conf.chinese_only, self.conf.negative_sample_rate, self.tokenizer.encode)
-            self.val_dataset = TongShunDataset(self.val_datas, self.voca, self.conf.chinese_only, self.conf.negative_sample_rate, self.tokenizer.encode)
+            self.val_dataset = TongShunDataset(self.val_datas, self.voca, self.conf.chinese_only, self.conf.negative_sample_rate, self.tokenizer.encode, val_mode=True)
+        elif stage == "validate":
+            self.val_dataset = TongShunDataset(self.val_datas, self.voca, self.conf.chinese_only, self.conf.negative_sample_rate, self.tokenizer.encode, val_mode=True)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.conf.batch_size, pin_memory=True)

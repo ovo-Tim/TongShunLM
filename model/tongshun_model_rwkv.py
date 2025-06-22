@@ -236,7 +236,7 @@ class tongshun(nn.Module):
         return x
 
 if __name__ == '__main__':
-    from configs.test1_20M import args
+    from configs.test7_124k import args
     model = tongshun(args)
 
     print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1e6}M")

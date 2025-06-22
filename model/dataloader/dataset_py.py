@@ -43,7 +43,7 @@ class RandomQueue:
         return len(self._data)
 
 class TongShunDataset(IterableDataset):
-    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a, pad_len:tuple[int, int]=(30, 10)):
+    def __init__(self, file_paths: list[Path], voca: list, chinese_only=True, negative_sample_rate:int=3, tokenizer = lambda a:a, pad_len:tuple[int, int]=(30, 10), val_mode=False):
         '''
         negative_sample_rate: 负样本采样率，但由于每个字符会生成三条数据，所以实际负样本采样率为 negative_sample_rate/3
         voca: 输入法可用词库
@@ -52,6 +52,7 @@ class TongShunDataset(IterableDataset):
         self.chinese_only = chinese_only
         self.negative_sample_rate = negative_sample_rate
         self.tokenizer = tokenizer
+        self.val_mode = val_mode
         self.voca = [self.tokenizer(i) for i in voca]
 
         self.pad_context_len, self.pad_y_len = pad_len
@@ -62,7 +63,7 @@ class TongShunDataset(IterableDataset):
         self.random_queue = RandomQueue()
 
         self._generator = self.generator()
-        for _ in repeat(None, 10):
+        for _ in repeat(None, 30):
             self.random_queue.add(next(self._generator))
 
     def data_generator(self, char, context, sentence):
@@ -110,9 +111,11 @@ class TongShunDataset(IterableDataset):
 
     def generator(self):
         for file_path in self.file_paths:
-            with open(file_path, 'r', encoding='utf-8') as file:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
                 context = ""
                 sentence = ""
+                if self.val_mode:
+                    file.seek(random.randint(0,10000))
                 while char := file.read(1):
                     if char == '\n':
                         context = ""
@@ -149,12 +152,12 @@ if __name__ == "__main__":
     with open("./model/dict.txt", "r") as f:
         voca = f.read().splitlines()
     tokenizer = Tokenizer("./model/tokenizer/tokenizer.json")
-    data = TongShunDataset([Path("./train_datas/test_data.txt")], voca, tokenizer=tokenizer.encode)
+    data = TongShunDataset([Path("./val_datas/test_data.txt")], voca, tokenizer=tokenizer.encode, val_mode=True)
     # data = TongShunDataset([Path("/tmp/chinese_output.txt")], voca, tokenizer=tokenizer.encode)
     t = iter(data)
     n = 1500
 
-    for _ in repeat(None, 100):
+    for _ in repeat(None, 10):
         a = next(t)
         print(a[0][0], a[0][1])
 
