@@ -49,12 +49,11 @@ class TongShunTrain(L.LightningModule):
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
 
-
 if __name__ == "__main__":
     from dataloader.data_model import TongShunDataModule, DataConfig
     # from configs.test1_20M import args as model_args
 
-    model_name = "configs.test7_124k"
+    model_conf = "configs.test7_124k"
     model_def = "tongshun_model_rwkv"
     validation_frequency = 100
     checkpoint_frequency = 500
@@ -64,11 +63,11 @@ if __name__ == "__main__":
 
     checkpoint_callback = ModelCheckpoint(
         dirpath="checkpoints/",  # 保存路径
-        filename=f"model-{model_name}" + "-{epoch:02d}-{step}-{val_loss:.4f}",
+        filename=f"model-{model_conf}" + "-{epoch:02d}-{step}-{val_loss:.4f}",
         every_n_train_steps=checkpoint_frequency,  # 每隔多少步保存一次
     )
-    logger = TensorBoardLogger(".", version=model_name)
-    model_args = getattr(__import__(model_name, fromlist=["args"]), "args")
+    logger = TensorBoardLogger(".", version=model_conf)
+    model_args = getattr(__import__(model_conf, fromlist=["args"]), "args")
     model = getattr(__import__(model_def, fromlist=["tongshun"]), "tongshun")(model_args)
     data_module = TongShunDataModule(data_conf)
     model = TongShunTrain(lr=1e-5, model=model)
